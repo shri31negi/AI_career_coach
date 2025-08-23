@@ -41,9 +41,15 @@ TECH_SKILL_HINTS = {
 }
 
 def _extract_section(text: str, header: str) -> str:
-    pattern = re.compile(rf"(?is){header}\s*[:\-]?\s*(.*?)(?=(" + "|".join(SECTION_HEADERS) + r")\s*[:\-]|\Z)")
+    pattern = re.compile(
+        rf"(?is){header}\s*[:\-]?\s*(.*?)(?=(" + "|".join(SECTION_HEADERS) + r")\s*[:\-]|\Z)"
+    )
     m = pattern.search(text)
-    return m.group(1).strip() if m else ""
+    if not m:
+        return ""
+    group_text = m.group(1) if m.group(1) else m.group(0)
+    return group_text.strip()
+
 
 def parse_resume(text: str) -> Dict:
     lower = text.lower()
