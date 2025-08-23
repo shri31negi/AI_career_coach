@@ -42,3 +42,12 @@ While tools like ChatGPT give general advice, they don’t deeply understand an 
 │── requirements.txt # Dependencies
 │── career_coach.py #Model
 │── README.md # Project documentation
+
+---
+
+## 🌍 Deployment
+
+[AI Career Coach on Streamlit](https://aicareercoach-9ogklbimfqcijqngulvwmf.streamlit.app)
+
+Deployed using [Streamlit Cloud](https://streamlit.io/cloud).
+
