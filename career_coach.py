@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-def _extract_section(text, pattern):
+def extract_text_from_pdf(text, pattern):
     m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
     if not m:
         return ""
