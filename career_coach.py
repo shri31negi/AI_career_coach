@@ -6,12 +6,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-def extract_text_from_pdf(text, pattern):
-    m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-    if not m:
-        return ""
-    group_text = m.group(1) if m.group(1) else m.group(0)
-    return group_text.strip()
+import pdfplumber
+
+def extract_text_from_pdf(file) -> str:
+    """Extract raw text from a PDF file-like object using pdfplumber."""
+    text = ""
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            if page.extract_text():
+                text += page.extract_text() + "\n"
+    return text.strip()
+
 
 
 
