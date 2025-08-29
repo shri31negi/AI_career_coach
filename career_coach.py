@@ -1,4 +1,3 @@
-
 import pdfplumber, re, math
 from typing import List, Dict, Tuple
 from collections import Counter
@@ -6,18 +5,30 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-import pdfplumber
-
-def extract_text_from_pdf(file) -> str:
-    """Extract raw text from a PDF file-like object using pdfplumber."""
-    text = ""
-    with pdfplumber.open(file) as pdf:
+def extract_text_from_pdf(file_like) -> str:
+    """
+    Improved: Extract text from a PDF file-like object using pdfplumber.
+    Handles multi-column and poorly formatted PDFs more robustly.
+    """
+    text = []
+    with pdfplumber.open(file_like) as pdf:
         for page in pdf.pages:
-            if page.extract_text():
-                text += page.extract_text() + "\n"
-    return text.strip()
-
-
+            # Try extract_text() first
+            t = page.extract_text() or ""
+            # If text is too short, try extracting words and reconstructing lines
+            if len(t.strip()) < 50:
+                words = page.extract_words()
+                lines = {}
+                for w in words:
+                    y = round(w['top'] / 10)  # group by line
+                    lines.setdefault(y, []).append(w['text'])
+                t = "\n".join([" ".join(lines[y]) for y in sorted(lines)])
+            text.append(t)
+    # Clean up: remove excessive blank lines, fix hyphenation
+    joined = "\n".join(text)
+    joined = re.sub(r'-\n', '', joined)  # join hyphenated line breaks
+    joined = re.sub(r'\n{2,}', '\n', joined)
+    return joined.strip()
 
 
 SECTION_HEADERS = [
@@ -41,15 +52,9 @@ TECH_SKILL_HINTS = {
 }
 
 def _extract_section(text: str, header: str) -> str:
-    pattern = re.compile(
-        rf"(?is){header}\s*[:\-]?\s*(.*?)(?=(" + "|".join(SECTION_HEADERS) + r")\s*[:\-]|\Z)"
-    )
+    pattern = re.compile(rf"(?is){header}\s*[:\-]?\s*(.*?)(?=(" + "|".join(SECTION_HEADERS) + r")\s*[:\-]|\Z)")
     m = pattern.search(text)
-    if not m:
-        return ""
-    group_text = m.group(1) if m.group(1) else m.group(0)
-    return group_text.strip()
-
+    return m.group(1).strip() if m else ""
 
 def parse_resume(text: str) -> Dict:
     lower = text.lower()
@@ -61,18 +66,24 @@ def parse_resume(text: str) -> Dict:
     parsed["projects_text"] = _extract_section(text, r"projects")
     parsed["achievements_text"] = _extract_section(text, r"achievements|awards|honors")
 
-   
-    tokens = [t.lower() for t in SKILL_TOKEN.findall(parsed.get("skills_text",""))]
+    # Improved: Extract skills from all sections, not just 'skills'
+    skill_candidates = []
+    for sec in ["skills_text", "experience_text", "projects_text"]:
+        skill_candidates += [t.lower() for t in SKILL_TOKEN.findall(parsed.get(sec, ""))]
     skills_list = []
-    for t in tokens:
+    for t in skill_candidates:
         if t in TECH_SKILL_HINTS or t.replace(".","") in TECH_SKILL_HINTS:
             skills_list.append(t)
-    
     seen = set()
     skills_list = [s for s in skills_list if not (s in seen or seen.add(s))]
-
     parsed["skills_list"] = skills_list
 
+    # New: Extract degree, universities, companies for more personalized advice
+    edu_lines = parsed["education_text"].splitlines()
+    parsed["degrees"] = [l for l in edu_lines if re.search(r"(bachelor|master|phd|b\.sc|m\.sc|mba|btech|mtech)", l, re.I)]
+    parsed["universities"] = [l for l in edu_lines if re.search(r"university|institute|college|school", l, re.I)]
+    exp_lines = parsed["experience_text"].splitlines()
+    parsed["companies"] = [l for l in exp_lines if re.search(r"\b(inc|llc|ltd|corp|technologies|solutions|systems)\b", l, re.I)]
     return parsed
 
 
@@ -144,21 +155,44 @@ CAREER_RULES = [
 def _matches(rule_skills: set, candidate_skills: set) -> bool:
     return len(rule_skills.intersection(candidate_skills)) > 0
 
-def suggest_careers_with_steps(skills_list: List[str]) -> List[Dict]:
+def suggest_careers_with_steps(parsed: Dict) -> List[Dict]:
+    """
+    Improved: Use more context (skills, degree, companies) and rank suggestions.
+    """
+    skills_list = parsed.get("skills_list", [])
     candidate = set([s.lower() for s in skills_list])
+    degree = " ".join(parsed.get("degrees", []))
+    universities = parsed.get("universities", [])
+    companies = parsed.get("companies", [])
     results = []
     for rule in CAREER_RULES:
         needed = set([s.lower() for s in rule["match"]["any"]])
-        if _matches(needed, candidate):
+        matched = needed.intersection(candidate)
+        score = len(matched)
+        if score > 0:
+            advice = rule["next_steps"].copy()
+            # Personalize: Suggest certifications or companies if relevant
+            if "aws" in matched:
+                advice.append("Consider AWS Certified Solutions Architect certification.")
+            if "python" in matched and "ml" in matched:
+                advice.append("Take a Deep Learning Specialization (Coursera/Andrew Ng).")
+            if universities:
+                advice.append(f"Highlight your education at {universities[0]}.")
+            if companies:
+                advice.append(f"Showcase impact at {companies[0]}.")
             results.append({
                 "career": rule["career"],
-                "matched_skills": sorted(list(needed.intersection(candidate))),
-                "next_steps": rule["next_steps"],
+                "matched_skills": sorted(list(matched)),
+                "score": score,
+                "next_steps": advice,
             })
+    # Sort by number of matched skills (descending)
+    results.sort(key=lambda x: x["score"], reverse=True)
     if not results:
         results.append({
             "career": "General Tech Path",
             "matched_skills": [],
+            "score": 0,
             "next_steps": [
                 "Clarify your 'Skills' section with specific tools and versions.",
                 "Add 2–3 quantified achievements per role or project.",
