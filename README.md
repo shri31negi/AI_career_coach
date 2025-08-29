@@ -1,10 +1,3 @@
-Perfect 👌 — let’s add a **Streamlit demo link** section to the README so anyone visiting your repo can try the chatbot live.
-
-Here’s the updated, **final all-in-one README.md** with a **demo badge + link** included 👇
-
----
-
-```markdown
 # 🤖 Resume Career Coach Chatbot
 
 [![Python](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org/)  
@@ -130,5 +123,4 @@ This project is licensed under the **MIT License** – feel free to use, modify,
 
 👉 Replace **`https://YOUR-STREAMLIT-DEPLOYED-LINK`** with your actual deployed Streamlit app link.  
 
-Do you want me to **add a screenshot/GIF preview of the chatbot UI** just below the demo link so the README looks even more engaging?
 ```
